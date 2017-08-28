@@ -19,7 +19,8 @@ layer_dict = {'ConvNdBackward': 'Convolution',
               'AddmmBackward': 'InnerProduct',
               'BatchNormBackward': 'BatchNorm',
               'AddBackward': 'Eltwise',
-              'ViewBackward': 'Reshape',}
+              'ViewBackward': 'Reshape',
+              'ConcatBackward': 'Concat'}
 
 layer_id = 0
 
@@ -91,9 +92,9 @@ def save_conv2caffe(weights, biases, conv_param):
 
 
 def save_fc2caffe(weights, biases, fc_param):
-    print biases.size(), weights.size()
-    print fc_param[1].data.shape
-    print fc_param[0].data.shape
+    print(biases.size(), weights.size())
+    print(fc_param[1].data.shape)
+    print(fc_param[0].data.shape)
     fc_param[1].data[...] = biases.numpy()
     fc_param[0].data[...] = weights.numpy()
 
@@ -109,7 +110,6 @@ def save_scale2caffe(weights, biases, scale_param):
     scale_param[0].data[...] = weights.numpy()
 
 
-# def pytorch2prototxt(model, x, var):
 def pytorch2prototxt(input_var, output_var):
     global layer_id
     net_info = OrderedDict()
@@ -156,16 +156,25 @@ def pytorch2prototxt(input_var, output_var):
         else:
             layer['bottom'] = ['data']
         layer['top'] = parent_top
-        if parent_type == 'ConvNdBackward':
+
+        if parent_type == 'ConcatBackward':
+            concat_param = OrderedDict()
+            concat_param['axis'] = func.dim
+            layer['concat_param'] = concat_param
+        elif parent_type == 'ConvNdBackward':
             weights = func.next_functions[1][0].variable
+
             conv_param = OrderedDict()
             conv_param['num_output'] = weights.size(0)
-            conv_param['pad'] = func.padding[0]
-            conv_param['kernel_size'] = weights.size(2)
+            conv_param['pad_h'] = func.padding[0]
+            conv_param['pad_w'] = func.padding[1]
+            conv_param['kernel_h'] = weights.size(2)
+            conv_param['kernel_w'] = weights.size(3)
             conv_param['stride'] = func.stride[0]
             if func.next_functions[2][0] == None:
                 conv_param['bias_term'] = 'false'
             layer['convolution_param'] = conv_param
+
         elif parent_type == 'BatchNormBackward':
             bn_layer = OrderedDict()
             bn_layer['name'] = parent_name + "_bn"
@@ -200,6 +209,7 @@ def pytorch2prototxt(input_var, output_var):
             pooling_param['pool'] = 'AVE'
             pooling_param['kernel_size'] = func.kernel_size[0]
             pooling_param['stride'] = func.stride[0]
+            pooling_param['pad'] = func.padding[0]
             layer['pooling_param'] = pooling_param
         elif parent_type == 'DropoutBackward':
             parent_top = parent_bottoms[0]
@@ -304,6 +314,3 @@ if __name__ == '__main__':
     plot_graph(output_var, 'inception_v3.dot')
 
     pytorch2caffe(input_var, output_var, 'inception_v3-pytorch2caffe.prototxt', 'inception_v3-pytorch2caffe.caffemodel')
-
-    # test
-
