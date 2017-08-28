@@ -304,13 +304,18 @@ def plot_graph(top_var, fname, params=None):
 
 if __name__ == '__main__':
     import torchvision
+    import os
 
     m = torchvision.models.inception_v3(pretrained=True, transform_input=False)
-    m.eval()  # very important here, otherwise batchnorm running_mean, running_var will be incorrect
-    input_var = Variable(torch.rand(1, 3, 299, 299))
-
+    m.eval()
     print(m)
-    output_var = m(input_var)
-    plot_graph(output_var, 'inception_v3.dot')
 
-    pytorch2caffe(input_var, output_var, 'inception_v3-pytorch2caffe.prototxt', 'inception_v3-pytorch2caffe.caffemodel')
+    input_var = Variable(torch.rand(1, 3, 299, 299))
+    output_var = m(input_var)
+
+    # plot graph to png
+    output_dir = 'demo'
+    plot_graph(output_var, os.path.join(output_dir, 'inception_v3.dot'))
+
+    pytorch2caffe(input_var, output_var, os.path.join(output_dir, 'inception_v3-pytorch2caffe.prototxt'),
+                  os.path.join(output_dir, 'inception_v3-pytorch2caffe.caffemodel'))
