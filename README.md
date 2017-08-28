@@ -1,7 +1,11 @@
 ## PyTorch2Caffe
 
-Ported from [pytorch-caffe-darknet-convert](https://github.com/marvis/pytorch-caffe-darknet-convert) and 
-add support for Concat Layer.
+Ported from [pytorch-caffe-darknet-convert](https://github.com/marvis/pytorch-caffe-darknet-convert). 
+
+Add support for 
++ Dilated Convolution Layer
++ Concat Layer
++ Upsampling (converted to Deconvolution with bilinear initialization)
 
 ```python
 import torch

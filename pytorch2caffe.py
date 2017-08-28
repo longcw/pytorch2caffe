@@ -20,7 +20,10 @@ layer_dict = {'ConvNdBackward': 'Convolution',
               'BatchNormBackward': 'BatchNorm',
               'AddBackward': 'Eltwise',
               'ViewBackward': 'Reshape',
-              'ConcatBackward': 'Concat'}
+              'ConcatBackward': 'Concat',
+              'UpsamplingNearest2d': 'Deconvolution',
+              'UpsamplingBilinear2d': 'Deconvolution',
+              'SigmoidBackward': 'Sigmoid'}
 
 layer_id = 0
 
@@ -79,6 +82,8 @@ def pytorch2caffe(input_var, output_var, protofile, caffemodel):
                 biases = func.next_functions[0][0].variable.data
                 weights = func.next_functions[2][0].next_functions[0][0].variable.data
                 save_fc2caffe(weights, biases, params[parent_name])
+            elif parent_type == 'UpsamplingNearest2d':
+                print('UpsamplingNearest2d')
 
     convert_layer(output_var.grad_fn)
     print('save caffemodel to %s' % caffemodel)
@@ -86,7 +91,7 @@ def pytorch2caffe(input_var, output_var, protofile, caffemodel):
 
 
 def save_conv2caffe(weights, biases, conv_param):
-    if biases:
+    if biases is not None:
         conv_param[1].data[...] = biases.numpy()
     conv_param[0].data[...] = weights.numpy()
 
@@ -157,7 +162,32 @@ def pytorch2prototxt(input_var, output_var):
             layer['bottom'] = ['data']
         layer['top'] = parent_top
 
-        if parent_type == 'ConcatBackward':
+        if parent_type == 'UpsamplingNearest2d':
+            conv_param = OrderedDict()
+            factor = func.scale_factor
+            conv_param['num_output'] = func.saved_tensors[0].size(1)
+            conv_param['group'] = conv_param['num_output']
+            conv_param['kernel_size'] = (2 * factor - factor % 2)
+            conv_param['stride'] = factor
+            conv_param['pad'] = int(np.ceil((factor - 1) / 2.))
+            conv_param['weight_filler'] = {'type': 'bilinear'}
+            conv_param['bias_term'] = 'false'
+            layer['convolution_param'] = conv_param
+            layer['param'] = {'lr_mult': 0, 'decay_mult': 0}
+        elif parent_type == 'UpsamplingBilinear2d':
+            conv_param = OrderedDict()
+            factor = func.scale_factor[0]
+            conv_param['num_output'] = func.input_size[1]
+            conv_param['group'] = conv_param['num_output']
+            conv_param['kernel_size'] = (2 * factor - factor % 2)
+            conv_param['stride'] = factor
+            conv_param['pad'] = int(np.ceil((factor - 1) / 2.))
+            conv_param['weight_filler'] = {'type': 'bilinear'}
+            conv_param['bias_term'] = 'false'
+            layer['convolution_param'] = conv_param
+            layer['param'] = {'lr_mult': 0, 'decay_mult': 0}
+
+        elif parent_type == 'ConcatBackward':
             concat_param = OrderedDict()
             concat_param['axis'] = func.dim
             layer['concat_param'] = concat_param
@@ -171,6 +201,7 @@ def pytorch2prototxt(input_var, output_var):
             conv_param['kernel_h'] = weights.size(2)
             conv_param['kernel_w'] = weights.size(3)
             conv_param['stride'] = func.stride[0]
+            conv_param['dilation'] = func.dilation[0]
             if func.next_functions[2][0] == None:
                 conv_param['bias_term'] = 'false'
             layer['convolution_param'] = conv_param

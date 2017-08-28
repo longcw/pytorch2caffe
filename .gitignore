@@ -3,4 +3,6 @@
 .idea
 *.pyc
 *.caffemodel
-#*.prototxt
+*.prototxt
+*.dot
+hw/

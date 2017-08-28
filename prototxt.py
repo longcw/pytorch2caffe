@@ -97,8 +97,9 @@ def is_number(s):
     try:
         float(s)
         return True
-    except ValueError:
+    except (ValueError, TypeError):
         return False
+
 
 
 def print_prototxt(net_info):
@@ -117,7 +118,7 @@ def print_prototxt(net_info):
         blanks = ''.join([' '] * indent)
         print('%s%s {' % (blanks, prefix))
         for key, value in block_info.items():
-            if type(value) == OrderedDict:
+            if isinstance(value, (OrderedDict, dict)):
                 print_block(value, key, indent + 4)
             elif type(value) == list:
                 for v in value:
@@ -157,7 +158,7 @@ def save_prototxt(net_info, protofile, region=True):
         blanks = ''.join([' '] * indent)
         print >> fp, '%s%s {' % (blanks, prefix)
         for key, value in block_info.items():
-            if type(value) == OrderedDict:
+            if isinstance(value, (OrderedDict, dict)):
                 print_block(value, key, indent + 4)
             elif type(value) == list:
                 for v in value:
