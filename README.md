@@ -6,6 +6,8 @@ Add support for
 + Dilated Convolution Layer
 + Concat Layer
 + Upsampling (converted to Deconvolution with bilinear initialization)
++ Eltwise Product
++ Sigmoid Layer
 
 ```python
 import torch

@@ -23,7 +23,10 @@ layer_dict = {'ConvNdBackward': 'Convolution',
               'ConcatBackward': 'Concat',
               'UpsamplingNearest2d': 'Deconvolution',
               'UpsamplingBilinear2d': 'Deconvolution',
-              'SigmoidBackward': 'Sigmoid'}
+              'SigmoidBackward': 'Sigmoid',
+              'LeakyReLUBackward': 'ReLU',
+              'NegateBackward': 'Power',
+              'MulBackward': 'Eltwise'}
 
 layer_id = 0
 
@@ -85,9 +88,10 @@ def pytorch2caffe(input_var, output_var, protofile, caffemodel):
             elif parent_type == 'UpsamplingNearest2d':
                 print('UpsamplingNearest2d')
 
-    convert_layer(output_var.grad_fn)
-    print('save caffemodel to %s' % caffemodel)
-    net.save(caffemodel)
+    if caffemodel is not None:
+        convert_layer(output_var.grad_fn)
+        print('save caffemodel to %s' % caffemodel)
+        net.save(caffemodel)
 
 
 def save_conv2caffe(weights, biases, conv_param):
@@ -162,7 +166,23 @@ def pytorch2prototxt(input_var, output_var):
             layer['bottom'] = ['data']
         layer['top'] = parent_top
 
-        if parent_type == 'UpsamplingNearest2d':
+        if parent_type == 'MulBackward':
+            eltwise_param = {
+                'operation': 'PROD',
+            }
+            layer['eltwise_param'] = eltwise_param
+        elif parent_type == 'NegateBackward':
+            power_param = {
+                'power': 1,
+                'scale': -1.,
+                'shift': 0
+            }
+            layer['power_param'] = power_param
+        elif parent_type == 'LeakyReLUBackward':
+            negative_slope = func.additional_args[0]
+            layer['relu_param'] = {'negative_slope': negative_slope}
+
+        elif parent_type == 'UpsamplingNearest2d':
             conv_param = OrderedDict()
             factor = func.scale_factor
             conv_param['num_output'] = func.saved_tensors[0].size(1)

@@ -5,4 +5,5 @@
 *.caffemodel
 *.prototxt
 *.dot
-hw/
+hw_seg
+pva
