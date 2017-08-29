@@ -66,12 +66,13 @@ def pytorch2caffe(input_var, output_var, protofile, caffemodel):
             parent_name = parent_type + str(layer_id)
             print('converting %s' % parent_name)
             if parent_type == 'ConvNdBackward':
-                weights = func.next_functions[1][0].variable.data
-                if func.next_functions[2][0]:
-                    biases = func.next_functions[2][0].variable.data
-                else:
-                    biases = None
-                save_conv2caffe(weights, biases, params[parent_name])
+                if func.next_functions[1][0] is not None:
+                    weights = func.next_functions[1][0].variable.data
+                    if func.next_functions[2][0]:
+                        biases = func.next_functions[2][0].variable.data
+                    else:
+                        biases = None
+                    save_conv2caffe(weights, biases, params[parent_name])
             elif parent_type == 'BatchNormBackward':
                 running_mean = func.running_mean
                 running_var = func.running_var
@@ -208,25 +209,38 @@ def pytorch2prototxt(input_var, output_var):
             conv_param['bias_term'] = 'false'
             layer['convolution_param'] = conv_param
             layer['param'] = {'lr_mult': 0, 'decay_mult': 0}
-
         elif parent_type == 'ConcatBackward':
             concat_param = OrderedDict()
             concat_param['axis'] = func.dim
             layer['concat_param'] = concat_param
         elif parent_type == 'ConvNdBackward':
-            weights = func.next_functions[1][0].variable
-
-            conv_param = OrderedDict()
-            conv_param['num_output'] = weights.size(0)
-            conv_param['pad_h'] = func.padding[0]
-            conv_param['pad_w'] = func.padding[1]
-            conv_param['kernel_h'] = weights.size(2)
-            conv_param['kernel_w'] = weights.size(3)
-            conv_param['stride'] = func.stride[0]
-            conv_param['dilation'] = func.dilation[0]
-            if func.next_functions[2][0] == None:
+            # Only for UpsamplingCaffe
+            if func.transposed is True and func.next_functions[1][0] is None:
+                layer['type'] = layer_dict['UpsamplingBilinear2d']
+                conv_param = OrderedDict()
+                factor = func.stride[0]
+                conv_param['num_output'] = func.next_functions[0][0].saved_tensors[0].size(1)
+                conv_param['group'] = conv_param['num_output']
+                conv_param['kernel_size'] = (2 * factor - factor % 2)
+                conv_param['stride'] = factor
+                conv_param['pad'] = int(np.ceil((factor - 1) / 2.))
+                conv_param['weight_filler'] = {'type': 'bilinear'}
                 conv_param['bias_term'] = 'false'
-            layer['convolution_param'] = conv_param
+                layer['convolution_param'] = conv_param
+                layer['param'] = {'lr_mult': 0, 'decay_mult': 0}
+            else:
+                weights = func.next_functions[1][0].variable
+                conv_param = OrderedDict()
+                conv_param['num_output'] = weights.size(0)
+                conv_param['pad_h'] = func.padding[0]
+                conv_param['pad_w'] = func.padding[1]
+                conv_param['kernel_h'] = weights.size(2)
+                conv_param['kernel_w'] = weights.size(3)
+                conv_param['stride'] = func.stride[0]
+                conv_param['dilation'] = func.dilation[0]
+                if func.next_functions[2][0] == None:
+                    conv_param['bias_term'] = 'false'
+                layer['convolution_param'] = conv_param
 
         elif parent_type == 'BatchNormBackward':
             bn_layer = OrderedDict()
@@ -234,8 +248,10 @@ def pytorch2prototxt(input_var, output_var):
             bn_layer['type'] = 'BatchNorm'
             bn_layer['bottom'] = parent_bottoms
             bn_layer['top'] = parent_top
+
             batch_norm_param = OrderedDict()
             batch_norm_param['use_global_stats'] = 'true'
+            batch_norm_param['eps'] = func.eps
             bn_layer['batch_norm_param'] = batch_norm_param
 
             affine = func.next_functions[1][0] is not None
