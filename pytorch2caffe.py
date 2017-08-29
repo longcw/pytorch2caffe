@@ -37,6 +37,8 @@ def pytorch2caffe(input_var, output_var, protofile, caffemodel):
     print_prototxt(net_info)
     save_prototxt(net_info, protofile)
 
+    if caffemodel is None:
+        return
     net = caffe.Net(protofile, caffe.TEST)
     params = net.params
 
@@ -73,14 +75,15 @@ def pytorch2caffe(input_var, output_var, protofile, caffemodel):
             elif parent_type == 'BatchNormBackward':
                 running_mean = func.running_mean
                 running_var = func.running_var
-                # print('%s running_mean' % parent_name, running_mean)
-                # exit(0)
-                scale_weights = func.next_functions[1][0].variable.data
-                scale_biases = func.next_functions[2][0].variable.data
                 bn_name = parent_name + "_bn"
-                scale_name = parent_name + "_scale"
                 save_bn2caffe(running_mean, running_var, params[bn_name])
-                save_scale2caffe(scale_weights, scale_biases, params[scale_name])
+
+                affine = func.next_functions[1][0] is not None
+                if affine:
+                    scale_weights = func.next_functions[1][0].variable.data
+                    scale_biases = func.next_functions[2][0].variable.data
+                    scale_name = parent_name + "_scale"
+                    save_scale2caffe(scale_weights, scale_biases, params[scale_name])
             elif parent_type == 'AddmmBackward':
                 biases = func.next_functions[0][0].variable.data
                 weights = func.next_functions[2][0].next_functions[0][0].variable.data
@@ -88,10 +91,9 @@ def pytorch2caffe(input_var, output_var, protofile, caffemodel):
             elif parent_type == 'UpsamplingNearest2d':
                 print('UpsamplingNearest2d')
 
-    if caffemodel is not None:
-        convert_layer(output_var.grad_fn)
-        print('save caffemodel to %s' % caffemodel)
-        net.save(caffemodel)
+    convert_layer(output_var.grad_fn)
+    print('save caffemodel to %s' % caffemodel)
+    net.save(caffemodel)
 
 
 def save_conv2caffe(weights, biases, conv_param):
@@ -236,14 +238,20 @@ def pytorch2prototxt(input_var, output_var):
             batch_norm_param['use_global_stats'] = 'true'
             bn_layer['batch_norm_param'] = batch_norm_param
 
-            scale_layer = OrderedDict()
-            scale_layer['name'] = parent_name + "_scale"
-            scale_layer['type'] = 'Scale'
-            scale_layer['bottom'] = parent_top
-            scale_layer['top'] = parent_top
-            scale_param = OrderedDict()
-            scale_param['bias_term'] = 'true'
-            scale_layer['scale_param'] = scale_param
+            affine = func.next_functions[1][0] is not None
+            # func.next_functions[1][0].variable.data
+            if affine:
+                scale_layer = OrderedDict()
+                scale_layer['name'] = parent_name + "_scale"
+                scale_layer['type'] = 'Scale'
+                scale_layer['bottom'] = parent_top
+                scale_layer['top'] = parent_top
+                scale_param = OrderedDict()
+                scale_param['bias_term'] = 'true'
+                scale_layer['scale_param'] = scale_param
+            else:
+                scale_layer = None
+
         elif parent_type == 'ThresholdBackward':
             parent_top = parent_bottoms[0]
         elif parent_type == 'MaxPool2dBackward':
@@ -282,7 +290,8 @@ def pytorch2prototxt(input_var, output_var):
         if parent_type != 'ViewBackward':
             if parent_type == "BatchNormBackward":
                 layers.append(bn_layer)
-                layers.append(scale_layer)
+                if scale_layer is not None:
+                    layers.append(scale_layer)
             else:
                 layers.append(layer)
                 # layer_id = layer_id + 1
