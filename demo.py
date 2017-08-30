@@ -24,10 +24,7 @@ output_name = 'AddmmBackward348'
 
 # pytorch net
 model = torchvision.models.inception_v3(pretrained=True, transform_input=False)
-
 model.eval()
-if test_mod:
-    model = model.cuda()
 
 # random input
 image = np.random.randint(0, 255, input_size)
@@ -35,8 +32,6 @@ input_data = image.astype(np.float32)
 
 # pytorch forward
 input_var = Variable(torch.from_numpy(input_data))
-if test_mod:
-    input_var = input_var.cuda()
 
 if not test_mod:
     # generate caffe model
@@ -54,6 +49,8 @@ net.blobs['data'].data[...] = input_data
 net.forward(start=input_name)
 caffe_output = net.blobs[output_name].data
 
+model = model.cuda()
+input_var = input_var.cuda()
 output_var = model(input_var)
 pytorch_output = output_var.data.cpu().numpy()
 
@@ -62,4 +59,4 @@ print('pytorch: min: {}, max: {}, mean: {}'.format(pytorch_output.min(), pytorch
 print('  caffe: min: {}, max: {}, mean: {}'.format(caffe_output.min(), caffe_output.max(), caffe_output.mean()))
 
 diff = np.abs(pytorch_output - caffe_output)
-print('   diff: min: {}, max: {}, mean: {}'.format(diff.min(), diff.max(), diff.mean()))
+print('   diff: min: {}, max: {}, mean: {}, median: {}'.format(diff.min(), diff.max(), diff.mean(), np.median(diff)))
