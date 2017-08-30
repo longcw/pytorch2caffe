@@ -10,6 +10,11 @@ Add support for
 + Sigmoid Layer
 
 ```python
+# We can obtain almost the same output from caffe except Upsampling
+# for inception_v3: 
+# diff between pytorch and caffe: min: 0.0, max: 1.76429748535e-05, mean: 2.14079022953e-06
+# see more in demo.py
+
 import torch
 from torch.autograd import Variable
 import torchvision
@@ -31,4 +36,6 @@ plot_graph(output_var, os.path.join(output_dir, 'inception_v3.dot'))
 pytorch2caffe(input_var, output_var, 
               os.path.join(output_dir, 'inception_v3-pytorch2caffe.prototxt'),
               os.path.join(output_dir, 'inception_v3-pytorch2caffe.caffemodel'))
+
 ```
+
