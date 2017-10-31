@@ -1,6 +1,6 @@
 import sys
 
-sys.path.append('/data/build_caffe/caffe_rtpose/python')
+sys.path.append('/extra/caffe/build_caffe/caffe_rtpose/python')
 import caffe
 from collections import OrderedDict
 import torch.nn as nn
@@ -26,7 +26,8 @@ layer_dict = {'ConvNdBackward': 'Convolution',
               'SigmoidBackward': 'Sigmoid',
               'LeakyReLUBackward': 'ReLU',
               'NegateBackward': 'Power',
-              'MulBackward': 'Eltwise'}
+              'MulBackward': 'Eltwise',
+              'SpatialCrossMapLRNFunc': 'LRN'}
 
 layer_id = 0
 
@@ -276,7 +277,8 @@ def pytorch2prototxt(input_var, output_var):
             pooling_param['kernel_size'] = func.kernel_size[0]
             pooling_param['stride'] = func.stride[0]
             # http://netaz.blogspot.com/2016/08/confused-about-caffes-pooling-layer.html
-            padding = 0 if func.padding[0] in {0, 1} else func.padding[0]
+            padding = func.padding[0]
+            # padding = 0 if func.padding[0] in {0, 1} else func.padding[0]
             pooling_param['pad'] = padding
             layer['pooling_param'] = pooling_param
         elif parent_type == 'AvgPool2dBackward':
@@ -301,6 +303,12 @@ def pytorch2prototxt(input_var, output_var):
             eltwise_param = OrderedDict()
             eltwise_param['operation'] = 'SUM'
             layer['eltwise_param'] = eltwise_param
+        elif parent_type == 'SpatialCrossMapLRNFunc':
+            layer['lrn_param'] = {
+                'local_size': func.size,
+                'alpha': func.alpha,
+                'beta': func.beta,
+            }
 
         layer['top'] = parent_top  # reset layer['top'] as parent_top may change
         if parent_type != 'ViewBackward':
