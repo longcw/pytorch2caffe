@@ -1,5 +1,7 @@
 ## PyTorch2Caffe
 
+**Require Pytorch < 0.4**
+
 Ported from [pytorch-caffe-darknet-convert](https://github.com/marvis/pytorch-caffe-darknet-convert). 
 
 Add support for 
